@@ -25,11 +25,11 @@ void init_record(Record *prev) {
     prev->hash_index = -1;
 }
 
-IP *find_route(IP *head, char *addr) {
-    IP *cursor, *node, *prev = NULL;
+IP *find_route(Map *map, int hash_index, char *addr) {
+    IP *head, *cursor, *node, *prev = NULL;
     int compare;
     
-    cursor = head;
+    head = cursor = map->route[hash_index];
     
     if (head) {
         while (cursor) {
@@ -46,14 +46,23 @@ IP *find_route(IP *head, char *addr) {
             }
         }
     }
+
+    // 建立新的 route node
     node = (IP *) malloc (sizeof(IP));
     node->addr = strdup(addr);
     node->url_db.size = 0;
     node->seen_link_cnt = 0;
     node->fail_link_cnt = 0;
-    node->next = NULL;
     create_url_db(&node->url_db);
-    if (prev) {
+    if (!head) {
+        node->next = NULL;
+        map->route[hash_index] = node;
+    }
+    else if (cursor == head) {
+        node->next = head;
+        map->route[hash_index] = node;
+    }
+    else if (prev) {
         node->next = cursor;
         prev->next = node;
     }
@@ -85,15 +94,14 @@ int next_hash_index(Map *map, int hash_index, IP *cursor) {
 
 void link_dispatcher(char *write_path, Map *map, Record *prev) {
     unsigned char *url;
-    int collect_cnt = 0;
+    int i, collect_cnt = 0;
     int hash_index = prev->hash_index;
-    IP *cursor = prev->cursor;
+    IP *ptr, *cursor = prev->cursor;
     FILE *fp = fopen(write_path, "w");
     
     while (collect_cnt < BATCH_NUM) {
         if (!cursor || !cursor->next) {
             hash_index = next_hash_index(map, hash_index, cursor);
-            
             // 指向新 hash_index 的 head
             cursor = map->route[hash_index];
         }
@@ -105,14 +113,31 @@ void link_dispatcher(char *write_path, Map *map, Record *prev) {
             continue;
         }
         url = pop_url_db(&cursor->url_db);
-        fwrite(url, sizeof(unsigned char), sizeof(url), fp);
+        fprintf(fp, "%s\n", url);
         free(url);
         collect_cnt++;
         map->size--;
     }
     fclose(fp);
-    
     // 紀錄最後一個 cursor 指向位置
     prev->hash_index = hash_index;
     prev->cursor = cursor;
+}
+
+void ip_analysis(Map map, char *path) {
+    FILE *fp = fopen(path, "w");
+    IP *cursor;
+    int i;
+
+    for (i = 0; i < MAX_HASH; i++) {
+        if (map.route[i]) {
+            cursor = map.route[i];
+            while (cursor) {
+                fprintf(fp, "%s %d %d\n", cursor->addr, cursor->seen_link_cnt, cursor->fail_link_cnt);
+                cursor = cursor->next;
+            }
+        }
+    }
+
+    fclose(fp);
 }

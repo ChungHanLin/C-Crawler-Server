@@ -17,19 +17,45 @@ void init_cache(Dns *cache) {
     }
 }
 
+unsigned char *extract_domain(unsigned char *url) {
+    int i, j, k, cnt, start = 0;
+    cnt = 0;
+    for(i = 0; i < strlen(url); i++) {
+        if (url[i] == '/') {
+            cnt++;
+            if (cnt == 2) {
+                start = i;
+            }
+        }
+        
+        if (cnt == 3) {
+            break;
+        }
+        
+    }
+    
+    unsigned char *domain = (unsigned char *) malloc (i - start);
+    for (j = start + 1, k = 0; j < i; j++, k++) {
+        domain[k] = url[j];
+    }
+    domain[k] = '\0';
+    
+    return domain;
+}
+
 char *find_dns_cache(Dns *cache, unsigned char *url) {
-    char *md5, *ip;
+    char *md5, *ip, *domain;
     int hash_index, compare;
     
-    // url 必須先萃取出 domain names
-    
-    encode_md5(url, &md5);
+    // url 必須先萃取出 domain names  
+    domain = extract_domain(url);
+    encode_md5(domain, &md5);
     hash_index = hash_func(md5);
-    
+
     Cache *cursor = cache->map[hash_index];
     
     while (cursor) {
-        compare = strcmp(url, cursor->url);
+        compare = strcmp(domain, cursor->url);
         if (compare > 0) {
             cursor = cursor->next;
         }
@@ -40,26 +66,34 @@ char *find_dns_cache(Dns *cache, unsigned char *url) {
             break;
         }
     }
-    ip = ask_dns_server(url);
-    cache->map[hash_index] = insert_dns_cache(cache->map[hash_index], url, ip);
+    ip = ask_dns_server(domain);
+    if (!ip) {
+        return NULL;
+    }
+    cache->map[hash_index] = insert_dns_cache(cache->map[hash_index], domain, ip);
     
     return ip;
 }
 
 char *ask_dns_server(unsigned char *url) {
-    char *ip = (char *) malloc(16);
-    CURLcode res;
-    CURL *curl = curl_easy_init();
-    
-    curl_easy_setopt(curl, CURLOPT_URL, url);
-    res = curl_easy_perform(curl);
-    
-    if (res == CURLE_OK) {
-        curl_easy_getinfo(curl, CURLINFO_PRIMARY_IP, &ip);
+    char record[16], *ip;
+    struct addrinfo hints, *res;
+    int status;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    status = getaddrinfo(url, NULL, &hints, &res);
+    if (status != 0) {
+        return NULL;
     }
-    
-    curl_easy_cleanup(curl);
-    
+    struct sockaddr_in *ipv4 = (struct sockaddr_in *)res->ai_addr;
+    void *addr = &(ipv4->sin_addr);
+    inet_ntop(res->ai_family, addr, record, sizeof(record));
+    freeaddrinfo(res);
+
+    ip = strdup(record);
+
     return ip;
 }
 
@@ -70,8 +104,8 @@ Cache *insert_dns_cache(Cache *head, unsigned char *url, char *ip) {
     cursor = head;
     
     node = (Cache *) malloc (sizeof(Cache));
-    node->url = strdup(url);
-    node->ip = strdup(ip);
+    node->url = url;
+    node->ip = ip;
     
     if (!cursor) {
         node->next = NULL;

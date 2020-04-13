@@ -22,10 +22,12 @@ void init_ip_map(Map *map);
 
 void init_record(Record *prev);
 
-IP *find_route(IP *head, char *addr);
+IP *find_route(Map *map, int hash_index, char *addr);
 
 int next_hash_index(Map *map, int hash_index, IP *cursor);
 
-void link_disptacher(char *write_path, Map *map, Record *prev_cursor);
+void link_dispatcher(char *write_path, Map *map, Record *prev_cursor);
+
+void ip_analysis(Map map, char *path);
 
 #endif /* ip_map_h */

@@ -1,0 +1,14 @@
+Account: lcha105u
+Begin time: Sun Apr 12 23:42:32 2020
+Finish time: Sun Apr 12 23:43:37 2020
+Last crawled time: Sun Apr 12 22:02:51 2020
+IP: 127.0.0.1
+Port: 8080
+Total crawled count: 652
+Recent crawled count: 218
+Success crawled link: ../C-Crawler-Server/log/success/lcha105u.log
+Total fail count: 12
+Recent fail count: 4
+Fail crawled link: ../C-Crawler-Server/log/fail/lcha105u.log
+Collected link count: 5286
+Collected link: ../C-Crawler-Server/log/collect/lcha105u.log

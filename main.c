@@ -17,13 +17,11 @@
 
 void *thread_handler(void *socketFD);
 
-bool create_client_index(int socketFD);
-
-int find_client_index(int socketFD);
+int create_client_index(int socketFD, char *account);
 
 void remove_client_index(int socketFD);
 
-void check_connected_account();
+char *check_connected_account();
 
 fd_set master, read_fds;
 int minFD, maxFD, clientNum;
@@ -34,6 +32,7 @@ Dns cache;
 SeenDB seen_db;
 FailDB fail_db;
 Record prev;    // 記錄前一次 ip 所指的到的位置
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 int main(int argc, const char * argv[]) {
     struct sockaddr_in server_info;
@@ -91,41 +90,64 @@ void *thread_handler(void *fd) {
     char recv_buffer[BUFFER_SIZE];
     char send_buffer[BUFFER_SIZE];
     char path[BUFFER_SIZE];
-    pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-    
+    bool r = false;
+
     pthread_detach(pthread_self());
     
-    if (create_client_index(socketFD)) {
-        client_index = find_client_index(socketFD);
-        while (true) {
-            bzero(recv_buffer, sizeof(recv_buffer));
-            bzero(send_buffer, sizeof(send_buffer));
+    while (true) {
+        bzero(recv_buffer, sizeof(recv_buffer));
+        bzero(send_buffer, sizeof(send_buffer));
+        
+        recv_num = recv(socketFD, &recv_buffer, BUFFER_SIZE, 0);
+        if (recv_num < 0) {
+            perror("recv");
+            break;
+        }
+        else if (recv_num == 0) {
+            fprintf(stderr, "Client %d disconnect\n", socketFD);
+            break;
+        }
+
+        if (!r) {
+            client_index = create_client_index(&client, recv_buffer);
+            r = true;
+        }
+        fprintf(stderr, "Account: %s\n", client[client_index].account);
+        if (strcmp("@Done", recv_buffer) == 0) {
+            fprintf(stderr, "A client is done his task\n");
+            // log file 讀取
+            // 所有輸入動作皆會在此完成
+            pthread_mutex_lock(&lock);
+            load_log_file(client[client_index].account, &seen_db, &fail_db, &map, &cache);
+            clear_socket(socketFD, &master, &minFD, &maxFD);
+            pthread_mutex_unlock(&lock);
             
-            recv_num = recv(socketFD, &recv_buffer, BUFFER_SIZE, 0);
-            if (recv_num < 0) {
-                perror("recv");
-                break;
+            fprintf(stderr, "Client leave\n");
+            
+            break;
+        }
+        // 可能爲 php socket 連線，使用 account name 進行判斷 
+        if (strcmp(client[client_index].account, "dashboard") == 0) {
+            // 原則上 php socket 強制結束不會有問題
+            
+            if (strcmp(recv_buffer, "@IP analysis") == 0) {
+                // send 分析結果檔案位置給 dashboard client
+                // 各個 IP success 與 fail url 數量 (暫時只能做到這個 QQ)
+                sprintf(send_buffer, "../C-Crawler-Server/log/analysis.log");
+                ip_analysis(map, send_buffer);
+                send(socketFD, &send_buffer, BUFFER_SIZE, 0);
             }
-            else if (recv_num == 0) {
-                fprintf(stderr, "Client %d disconnect", socketFD);
-                break;
+            else {
+                // send 當前 connected socket client 資訊
+                // dashboard 可根據 client account 至 log 尋找相應的 log file
+                char *account = check_connected_account();
+                fprintf(stderr, "> %s", account);
+                send(socketFD, account, BUFFER_SIZE, 0);
+                free(account);
             }
-            
-            
-            if (strcmp("@Done", recv_buffer) == 0) {
-                // log file 讀取
-                // 所有輸入動作皆會在此完成
-                pthread_mutex_lock(&lock);
-                load_log_file(client[client_index].account, &seen_db, &fail_db, &map, &cache);
-                clear_socket(socketFD, &master, &minFD, &maxFD);
-                pthread_mutex_unlock(&lock);
-                
-                fprintf(stderr, "Client leave\n");
-                
-                break;
-            }
-            
-            // 判斷是否為第一次執行
+        }
+        else {
+        // 判斷是否為第一次執行
             if (map.size < BATCH_NUM) {
                 // 為第一次執行 (send 通知 client 爬 link)
                 init_record(&prev);
@@ -135,7 +157,7 @@ void *thread_handler(void *fd) {
             else {
                 // 通知 client 檔案位置
                 bzero(path, sizeof(path));
-                sprintf(path, "log/link_queue/%s.log", client[client_index].account);
+                sprintf(path, "../C-Crawler-Server/log/link_queue/%s.log", client[client_index].account);
                 
                 // dispatch link (避免同時分配時分配到同樣的 link，因此 lock 確保資料唯一性)
                 pthread_mutex_lock(&lock);
@@ -150,40 +172,26 @@ void *thread_handler(void *fd) {
             }
         }
     }
+    
 
     remove_client_index(socketFD);
     pthread_exit(NULL);
 }
 
-bool create_client_index(int socketFD) {
-    char recv_buffer[BUFFER_SIZE];
-    char send_buffer[BUFFER_SIZE];
-    pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-    
-    // First recv msg is client`s account name
-    bzero(recv_buffer, sizeof(recv_buffer));
-    if (recv(socketFD, &recv_buffer, BUFFER_SIZE, 0) < 0) {
-        perror("account recv");
-        return false;
-    }
-    
-    sprintf(send_buffer, "Welcome %s", recv_buffer);
-    if (send(socketFD, &send_buffer, BUFFER_SIZE, 0) < 0) {
-        perror("send");
-        return false;
-    }
+int create_client_index(int socketFD, char *account) {
     
     // Lock when writing
     pthread_mutex_lock(&lock);
     
     // Add socketFD with account name
     client[clientNum].socketFD = socketFD;
-    client[clientNum].account = strdup(recv_buffer);
+    client[clientNum].account = strdup(account);
+    fprintf(stderr, "%s\n", client[clientNum].account);
     clientNum++;
     
     pthread_mutex_unlock(&lock);
     
-    return true;
+    return (clientNum - 1);
 }
 
 int find_client_index(int socketFD) {
@@ -199,7 +207,6 @@ int find_client_index(int socketFD) {
 
 void remove_client_index(int socketFD) {
     int i, j;
-    pthread_mutex_t lock;
     
     pthread_mutex_lock(&lock);
     for(i = 0; i < clientNum; i++) {
@@ -218,10 +225,23 @@ void remove_client_index(int socketFD) {
     pthread_mutex_unlock(&lock);
 }
 
-void check_connected_account() {
+char *check_connected_account() {
     int i;
-    
+    char *account = (char *) malloc(BUFFER_SIZE);
+
+    memset(account, '\0', BUFFER_SIZE);
+
     for (i = 0 ; i < clientNum; i++) {
-        fprintf(stderr, "FD: %d  %s\n", client[i].socketFD, client[i].account);
+        if (strcmp(client[i].account, "dashboard") == 0){
+            continue;
+        }
+        if (account[0] == '\0') {
+            sprintf(account, "%s\n", client[i].account);
+        }
+        else {
+            sprintf(account, "%s%s\n", account, client[i].account);
+        }
     }
+    
+    return account;
 }
