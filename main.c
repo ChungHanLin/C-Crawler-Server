@@ -101,24 +101,32 @@ void *thread_handler(void *fd) {
         recv_num = recv(socketFD, &recv_buffer, BUFFER_SIZE, 0);
         if (recv_num < 0) {
             perror("recv");
+            pthread_mutex_lock(&lock);
+            remove_client_index(socketFD);
+            clear_socket(socketFD, &master, &minFD, &maxFD);
+            pthread_mutex_unlock(&lock);
             break;
         }
         else if (recv_num == 0) {
             fprintf(stderr, "Client %d disconnect\n", socketFD);
+            pthread_mutex_lock(&lock);
+            remove_client_index(socketFD);
+            clear_socket(socketFD, &master, &minFD, &maxFD);
+            pthread_mutex_unlock(&lock);
             break;
         }
 
         if (!r) {
-            client_index = create_client_index(&client, recv_buffer);
+            client_index = create_client_index(socketFD, recv_buffer);
             r = true;
         }
-        fprintf(stderr, "Account: %s\n", client[client_index].account);
         if (strcmp("@Done", recv_buffer) == 0) {
             fprintf(stderr, "A client is done his task\n");
             // log file 讀取
             // 所有輸入動作皆會在此完成
             pthread_mutex_lock(&lock);
             load_log_file(client[client_index].account, &seen_db, &fail_db, &map, &cache);
+            remove_client_index(socketFD);
             clear_socket(socketFD, &master, &minFD, &maxFD);
             pthread_mutex_unlock(&lock);
             
@@ -141,7 +149,7 @@ void *thread_handler(void *fd) {
                 // send 當前 connected socket client 資訊
                 // dashboard 可根據 client account 至 log 尋找相應的 log file
                 char *account = check_connected_account();
-                fprintf(stderr, "> %s", account);
+                fprintf(stderr, "> %s\n", account);
                 send(socketFD, account, BUFFER_SIZE, 0);
                 free(account);
             }
@@ -173,8 +181,6 @@ void *thread_handler(void *fd) {
         }
     }
     
-
-    remove_client_index(socketFD);
     pthread_exit(NULL);
 }
 
@@ -207,10 +213,10 @@ int find_client_index(int socketFD) {
 
 void remove_client_index(int socketFD) {
     int i, j;
-    
-    pthread_mutex_lock(&lock);
+
     for(i = 0; i < clientNum; i++) {
         if (client[i].socketFD == socketFD) {
+
             for (j = i; j < clientNum - 1; j++) {
                 client[j].socketFD = client[j + 1].socketFD;
                 free(client[j].account);
@@ -222,7 +228,7 @@ void remove_client_index(int socketFD) {
             break;
         }
     }
-    pthread_mutex_unlock(&lock);
+    
 }
 
 char *check_connected_account() {
@@ -230,16 +236,16 @@ char *check_connected_account() {
     char *account = (char *) malloc(BUFFER_SIZE);
 
     memset(account, '\0', BUFFER_SIZE);
-
+    fprintf(stderr, "Connected client num : %d\n", clientNum);
     for (i = 0 ; i < clientNum; i++) {
         if (strcmp(client[i].account, "dashboard") == 0){
             continue;
         }
         if (account[0] == '\0') {
-            sprintf(account, "%s\n", client[i].account);
+            sprintf(account, "%s ", client[i].account);
         }
         else {
-            sprintf(account, "%s%s\n", account, client[i].account);
+            sprintf(account, "%s%s ", account, client[i].account);
         }
     }
     
