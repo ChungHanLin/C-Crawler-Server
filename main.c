@@ -31,7 +31,7 @@ Map map;
 Dns cache;
 SeenDB seen_db;
 FailDB fail_db;
-Record prev;    // 記錄前一次 ip 所指的到的位置
+Record prev;    // Record previous IP map index.
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 int main(int argc, const char * argv[]) {
@@ -47,6 +47,7 @@ int main(int argc, const char * argv[]) {
     printf("Please enter an url: ");
     scanf("%s", url);
     
+    // Initialize In-memory DB
     init_cache(&cache);
     init_ip_map(&map);
     create_seen_db(&seen_db);
@@ -66,6 +67,8 @@ int main(int argc, const char * argv[]) {
     int i;
     minFD = maxFD = serverFD;
     clientNum = 0;
+    
+    // Make server can execute all the time
     while(true) {
         read_fds = master;
         select_client(maxFD, &read_fds);
@@ -73,6 +76,8 @@ int main(int argc, const char * argv[]) {
             if (FD_ISSET(i, &read_fds)) {
                 clientFD = accept_client(serverFD, &client_info);
                 insert_fd_set(clientFD, &master, &minFD, &maxFD);
+                
+                // Using pthread to handle mutiple client.
                 pthread_create(&client_thread, NULL, thread_handler, (void *) clientFD);
             }
         }
@@ -92,6 +97,7 @@ void *thread_handler(void *fd) {
     char path[BUFFER_SIZE];
     bool r = false;
 
+    // pthread_detach can release system resource automatically.
     pthread_detach(pthread_self());
     
     while (true) {
@@ -115,15 +121,15 @@ void *thread_handler(void *fd) {
             pthread_mutex_unlock(&lock);
             break;
         }
-
+        
+        // If it was first execution, should create client index in the client list.
         if (!r) {
             client_index = create_client_index(socketFD, recv_buffer);
             r = true;
         }
         if (strcmp("@Done", recv_buffer) == 0) {
-            fprintf(stderr, "A client is done his task\n");
-            // log file 讀取
-            // 所有輸入動作皆會在此完成
+            
+            // Lock the process whem reading log file.
             pthread_mutex_lock(&lock);
             load_log_file(client[client_index].account, &seen_db, &fail_db, &map, &cache);
             remove_client_index(socketFD);
