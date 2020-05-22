@@ -128,19 +128,20 @@ void ip_analysis(Map map, char *path) {
     FILE *fp = fopen(path, "w");
     IP *cursor;
     int i;
-
+    fprintf(stderr, "IP anlysis... ");
     for (i = 0; i < MAX_HASH; i++) {
         if (map.route[i]) {
             cursor = map.route[i];
             while (cursor) {
-                if (cursor->seen_link_cnt == 0 && cursor->fail_link_cnt == 0) {
-                    continue;
-                }
+                // if (cursor->seen_link_cnt == 0 && cursor->fail_link_cnt == 0) {
+                //     continue;
+                // }
                 fprintf(fp, "%s %d %d\n", cursor->addr, cursor->seen_link_cnt, cursor->fail_link_cnt);
                 cursor = cursor->next;
             }
         }
     }
+    fprintf(stderr, "Done!\n");
 
     fclose(fp);
 }
