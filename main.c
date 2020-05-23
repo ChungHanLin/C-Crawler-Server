@@ -7,6 +7,7 @@
 //
 
 #include <stdio.h>
+#include <signal.h>
 
 #include "struct.h"
 #include "socket.h"
@@ -14,6 +15,8 @@
 #include "hash/dns/cache.h"
 #include "hash/db/ip_map.h"
 #include "hash/db/db_struct.h"
+
+void sigint_handler(int sig);
 
 void *thread_handler(void *socketFD);
 
@@ -25,7 +28,7 @@ char *check_connected_account();
 
 fd_set master, read_fds;
 int minFD, maxFD, clientNum;
-unsigned char url[256];
+unsigned char url[1024];
 Client client[BACKLOG_NUM];
 Map map;
 Dns cache;
@@ -43,16 +46,29 @@ int main(int argc, const char * argv[]) {
     
     pthread_t client_thread;
     
-    // Given entrance url
-    printf("Please enter an url: ");
-    scanf("%s", url);
-    
+    signal(SIGINT, sigint_handler);
+
     // Initialize In-memory DB
     init_cache(&cache);
     init_ip_map(&map);
     create_seen_db(&seen_db);
     create_fail_db(&fail_db);
     
+    // Recover db data, if needed
+    recover_cache(&cache);
+    recover_route(&map);
+    recover_url_db(&map);
+    recover_seen_db(&seen_db);
+    recover_fail_db(&fail_db);
+
+    
+    // Given entrance url
+    // 表示 server 從未被啟動過
+    if (seen_db.size == 0) {
+        printf("Please enter an url: ");
+        scanf(" %s", url);
+    }
+
     // create socket server information
     serverFD = create_socket();
 
@@ -88,6 +104,39 @@ int main(int argc, const char * argv[]) {
     return 0;
 }
 
+void sigint_handler(int sig) {
+    char c;
+
+    signal(sig, SIG_IGN);
+    printf("Do you want to close the server ? [y/n] ");
+    scanf(" %c", &c);
+    if (c == 'y' || c == 'Y') {
+        /* Backup current data in the DB */
+        fprintf(stderr, "Backup the data in the DB...\n");
+        fprintf(stderr, "Seen DB... ");
+        backup_seen_db(&seen_db);
+        fprintf(stderr, "OK\n");
+
+        fprintf(stderr, "Fail DB... ");
+        backup_fail_db(&fail_db);
+        fprintf(stderr, "OK\n");
+
+        fprintf(stderr, "Url DB... ");
+        backup_route(&map);
+        fprintf(stderr, "OK\n");
+
+        fprintf(stderr, "DNS Cache... ");
+        backup_cache(&cache);
+        fprintf(stderr, "OK\n");
+
+        fprintf(stderr, "Done!\n");
+        exit(EXIT_SUCCESS);
+    }
+    else {
+        signal(SIGINT, sigint_handler);
+    }
+}
+
 void *thread_handler(void *fd) {
     int socketFD = (int) fd;
     int client_index;
@@ -99,7 +148,7 @@ void *thread_handler(void *fd) {
 
     // pthread_detach can release system resource automatically.
     pthread_detach(pthread_self());
-    
+
     while (true) {
         bzero(recv_buffer, sizeof(recv_buffer));
         bzero(send_buffer, sizeof(send_buffer));
@@ -150,15 +199,23 @@ void *thread_handler(void *fd) {
                 sprintf(send_buffer, "../C-Crawler-Server/log/analysis.log");
                 ip_analysis(map, send_buffer);
                 send(socketFD, &send_buffer, BUFFER_SIZE, 0);
+                pthread_mutex_lock(&lock);
+                remove_client_index(socketFD);
+                clear_socket(socketFD, &master, &minFD, &maxFD);
+                pthread_mutex_unlock(&lock);
             }
             else {
                 // send 當前 connected socket client 資訊
                 // dashboard 可根據 client account 至 log 尋找相應的 log file
                 char *account = check_connected_account();
-                fprintf(stderr, "> %s\n", account);
                 send(socketFD, account, BUFFER_SIZE, 0);
+                pthread_mutex_lock(&lock);
+                remove_client_index(socketFD);
+                clear_socket(socketFD, &master, &minFD, &maxFD);
+                pthread_mutex_unlock(&lock);
                 free(account);
             }
+            break;
         }
         else {
         // 判斷是否為第一次執行
@@ -222,19 +279,27 @@ void remove_client_index(int socketFD) {
 
     for(i = 0; i < clientNum; i++) {
         if (client[i].socketFD == socketFD) {
-
+            fprintf(stderr, "%s leave\n", client[i].account);
             for (j = i; j < clientNum - 1; j++) {
                 client[j].socketFD = client[j + 1].socketFD;
                 free(client[j].account);
                 client[j].account = strdup(client[j + 1].account);
             }
             free(client[j].account);
+            client[j].account = NULL;
             client[j].socketFD = -1;
             clientNum--;
             break;
         }
     }
     
+    fprintf(stderr, "Connected client: %d\n", clientNum);
+    for (i = 0; i < 10; i++) {
+        if (client[i].account) {
+            fprintf(stderr, "%d: %s\n", client[i].socketFD, client[i].account);
+        }
+    }
+
 }
 
 char *check_connected_account() {
@@ -242,7 +307,6 @@ char *check_connected_account() {
     char *account = (char *) malloc(BUFFER_SIZE);
 
     memset(account, '\0', BUFFER_SIZE);
-    fprintf(stderr, "Connected client num : %d\n", clientNum);
     for (i = 0 ; i < clientNum; i++) {
         if (strcmp(client[i].account, "dashboard") == 0){
             continue;

@@ -14,4 +14,8 @@
 
 void create_fail_db(FailDB *db);
 
+void recover_fail_db(FailDB *db);
+
+void backup_fail_db(FailDB *db);
+
 #endif /* fail_db_h */

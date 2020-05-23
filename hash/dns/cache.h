@@ -34,6 +34,10 @@ typedef struct dns {
 
 void init_cache(Dns *cache);
 
+void backup_cache(Dns *cache);
+
+void recover_cache(Dns *cache);
+
 unsigned char *extract_domain(unsigned char *url);
 
 char *find_dns_cache(Dns *cache, unsigned char *url);

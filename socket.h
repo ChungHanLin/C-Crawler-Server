@@ -24,8 +24,9 @@
 #include <unistd.h>
 #include <pthread.h>
 
+#include "struct.h"
+
 #define PORT_NUM 8080
-#define BUFFER_SIZE 512
 #define BACKLOG_NUM 10
 
 #define true 1

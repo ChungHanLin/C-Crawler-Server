@@ -15,6 +15,7 @@
 #define false 0
 
 #define BATCH_NUM 1024
+#define BUFFER_SIZE 2048
 
 typedef unsigned int bool;
 

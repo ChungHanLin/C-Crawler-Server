@@ -18,6 +18,32 @@ void create_url_db(UrlDB *db) {
     }
 }
 
+
+
+void recover_url_db(Map *map) {
+    int i, map_hash_index, url_hash_index;
+    char path[] = "backup/url_db.log";
+    char prev_addr[BUFFER_SIZE];
+    char cur_addr[BUFFER_SIZE];
+    char url[BUFFER_SIZE];
+    IP *cursor;
+
+    FILE *fp = fopen(path, "r");
+    bzero(prev_addr, sizeof(prev_addr));
+
+    if (fp) {
+        while (fscanf(fp, "%d %s %d %s", &map_hash_index, cur_addr, &url_hash_index, url) != EOF) {
+            if (strcmp(prev_addr, cur_addr) != 0) {
+                cursor = find_route(map, map_hash_index, cur_addr);
+            }
+            cursor->url_db.table[url_hash_index] = insert(cursor->url_db.table[url_hash_index], url);
+            cursor->url_db.size++;
+        }
+
+        fclose(fp);
+    }
+}
+
 unsigned char *pop_url_db(UrlDB *db) {
     unsigned char *url;
     DB *cursor;

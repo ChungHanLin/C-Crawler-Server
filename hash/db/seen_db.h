@@ -14,4 +14,8 @@
 
 void create_seen_db(SeenDB *db);
 
+void recover_seen_db(SeenDB *db);
+
+void backup_seen_db(SeenDB *db);
+
 #endif /* seen_db_h */

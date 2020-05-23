@@ -8,8 +8,6 @@
 
 #include "ip_map.h"
 
-
-
 void init_ip_map(Map *map) {
     int i;
     map->route = (IP **) malloc (sizeof(IP *) * MAX_HASH);
@@ -23,6 +21,95 @@ void init_ip_map(Map *map) {
 void init_record(Record *prev) {
     prev->cursor = NULL;
     prev->hash_index = -1;
+}
+
+void backup_route(Map *map) {
+    int i, j;
+    char ip_path[] = "backup/ip_map.log";
+    char url_path[] = "backup/url_db.log";
+
+    FILE *fp_map = fopen(ip_path, "w");
+    FILE *fp_url = fopen(url_path, "w");
+    IP *cursor;
+    DB *ptr;
+
+    if (fp_map) {
+        fprintf(fp_map, "%d\n", map->size);
+        for (i = 0; i < MAX_HASH; i++) {
+            if (!map->route[i]) {
+                cursor = map->route[i];
+                while (cursor) {
+                    fprintf(fp_map, "%d %s %d %d\n", i, cursor->addr, cursor->seen_link_cnt, cursor->fail_link_cnt);
+                    for (j = 0; j < MAX_HASH; j++) {
+                        if (cursor->url_db.table[j]) {
+                            ptr = cursor->url_db.table[j];
+                            while (ptr) {
+                                fprintf(fp_url, "%d %s %d %s\n", &i, cursor->addr, &j, ptr->url);
+                                ptr = ptr->next;
+                            }
+                        }
+                    }
+                    cursor = cursor->next;
+                }
+            }
+        }
+    }
+}
+
+void recover_route(Map *map) {
+    int i, hash_index, seen_cnt, fail_cnt;
+    char path[] = "backup/ip_map.log";
+    char addr[BUFFER_SIZE];
+    FILE *fp = fopen(path, "r");
+
+    if (fp) {
+        fscanf(fp, "%d", &map->size);
+
+        while (fscanf(fp, "%d %s %d %d", &hash_index, addr, &seen_cnt, &fail_cnt) != EOF) {
+            map->route[hash_index] = insert_route(map->route[hash_index], addr, seen_cnt, fail_cnt);
+        }
+
+        fclose(fp);
+    }
+}
+
+IP *insert_route(IP *head, char *addr, int seen_cnt, int fail_cnt) {
+    int compare;
+    IP *cursor, *node;
+    IP *prev = NULL;
+    cursor = head;
+
+    node = (IP *) malloc (sizeof(IP));
+    node->addr = strdup (addr);
+    node->seen_link_cnt = seen_cnt;
+    node->fail_link_cnt = fail_cnt;
+    create_url_db(&node->url_db);
+
+    if (!cursor) {
+        node->next = NULL;
+        head = node;
+    }
+    else {
+        
+        while (cursor) {
+            if ((compare = strcmp(addr, cursor->addr)) < 0) {
+                break;
+            }
+            prev = cursor;
+            cursor = cursor->next;
+        }
+        // Insert at head
+        if (cursor == head) {
+            node->next = head;
+            head = node;
+        }
+        else {
+            node->next = cursor;
+            prev->next = node;
+        }
+    }
+    
+    return head;
 }
 
 IP *find_route(Map *map, int hash_index, char *addr) {

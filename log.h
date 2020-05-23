@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "struct.h"
 #include "hash/hash.h"
 #include "hash/dns/cache.h"
 #include "hash/db/ip_map.h"
@@ -20,8 +21,6 @@
 #include "hash/db/fail_db.h"
 #include "hash/db/seen_db.h"
 #include "hash/db/db_struct.h"
-
-#define BUFFER_SIZE 2048
 
 void load_log_file(char *account, SeenDB *seen_db, FailDB *fail_db, Map *map, Dns *cache);
 

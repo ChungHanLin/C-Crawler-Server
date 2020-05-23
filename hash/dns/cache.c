@@ -17,6 +17,42 @@ void init_cache(Dns *cache) {
     }
 }
 
+void backup_cache(Dns *cache) {
+    int i;
+    char path[] = "backup/dns_cache.log";
+    FILE *fp = fopen(path, "w");
+    Cache *cursor;
+    if (fp) {
+        for (i = 0; i < MAX_HASH; i++) {
+            if (!cache->map[i]) {
+                cursor = cache->map[i];
+                while (cursor) {
+                    fprintf(fp, "%d %s %s\n", i, cursor->ip, cursor->url);
+                    cursor = cursor->next;
+                }
+            }
+        }
+
+        fclose(fp);
+    }
+}
+
+void recover_cache(Dns *cache) {
+    int i, hash_index;
+    char path[] = "backup/dns_cache.log";
+    char ip[BUFFER_SIZE], domain[BUFFER_SIZE];
+    FILE *fp = fopen(path, "r");
+    Cache *cursor;
+
+    if (fp) {
+        while (fscanf(fp, "%d %s %s", &hash_index, ip, domain) != EOF) {
+            cache->map[hash_index] = insert_dns_cache(cache->map[hash_index], domain, ip);
+        }
+
+        fclose(fp);
+    }
+}
+
 unsigned char *extract_domain(unsigned char *url) {
     int i, j, k, cnt, start = 0;
     cnt = 0;

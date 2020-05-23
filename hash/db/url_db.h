@@ -10,9 +10,12 @@
 #define url_db_h
 
 #include "../hash.h"
+#include "ip_map.h"
 #include "db_struct.h"
 
 void create_url_db(UrlDB *db);
+
+void recover_url_db(Map *map);
 
 unsigned char *pop_url_db(UrlDB *db);
 

@@ -22,6 +22,12 @@ void init_ip_map(Map *map);
 
 void init_record(Record *prev);
 
+void backup_route(Map *map);
+
+void recover_route(Map *map);
+
+IP *insert_route(IP *head, char *addr, int seen_cnt, int fail_cnt);
+
 IP *find_route(Map *map, int hash_index, char *addr);
 
 int next_hash_index(Map *map, int hash_index, IP *cursor);
