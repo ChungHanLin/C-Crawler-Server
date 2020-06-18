@@ -36,7 +36,7 @@ void backup_route(Map *map) {
     if (fp_map) {
         fprintf(fp_map, "%d\n", map->size);
         for (i = 0; i < MAX_HASH; i++) {
-            if (!map->route[i]) {
+            if (map->route[i]) {
                 cursor = map->route[i];
                 while (cursor) {
                     fprintf(fp_map, "%d %s %d %d\n", i, cursor->addr, cursor->seen_link_cnt, cursor->fail_link_cnt);
@@ -44,7 +44,7 @@ void backup_route(Map *map) {
                         if (cursor->url_db.table[j]) {
                             ptr = cursor->url_db.table[j];
                             while (ptr) {
-                                fprintf(fp_url, "%d %s %d %s\n", &i, cursor->addr, &j, ptr->url);
+                                fprintf(fp_url, "%d %s %d %s\n", i, cursor->addr, j, ptr->url);
                                 ptr = ptr->next;
                             }
                         }

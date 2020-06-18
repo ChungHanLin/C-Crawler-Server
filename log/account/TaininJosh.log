@@ -1,0 +1,13 @@
+Account: TaininJosh
+Begin time: Wed Jun 17 22:39:23 2020
+Finish time: Wed Jun 17 22:42:17 2020
+IP: 127.0.0.1
+Port: 8080
+Total crawled count: 843
+Recent crawled count: 843
+Success crawled link: ../C-Crawler-Server/log/success/TaininJosh.log
+Total fail count: 181
+Recent fail count: 181
+Fail crawled link: ../C-Crawler-Server/log/fail/TaininJosh.log
+Collected link count: 11721
+Collected link: ../C-Crawler-Server/log/collect/TaininJosh.log

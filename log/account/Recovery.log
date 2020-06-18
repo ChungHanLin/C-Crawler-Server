@@ -1,0 +1,13 @@
+Account: Recovery
+Begin time: Thu Jun 18 00:18:25 2020
+Finish time: Thu Jun 18 00:22:24 2020
+IP: 127.0.0.1
+Port: 8080
+Total crawled count: 183
+Recent crawled count: 183
+Success crawled link: ../C-Crawler-Server/log/success/Recovery.log
+Total fail count: 841
+Recent fail count: 841
+Fail crawled link: ../C-Crawler-Server/log/fail/Recovery.log
+Collected link count: 4225
+Collected link: ../C-Crawler-Server/log/collect/Recovery.log

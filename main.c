@@ -56,10 +56,16 @@ int main(int argc, const char * argv[]) {
     
     // Recover db data, if needed
     recover_cache(&cache);
-    recover_route(&map);
-    recover_url_db(&map);
+    fprintf(stderr, "--------------\n");
     recover_seen_db(&seen_db);
+    fprintf(stderr, "--------------\n");
     recover_fail_db(&fail_db);
+    fprintf(stderr, "--------------\n");
+    recover_route(&map);
+    fprintf(stderr, "--------------\n");
+    recover_url_db(&map);
+    fprintf(stderr, "--------------\n");
+    
 
     
     // Given entrance url
@@ -192,29 +198,30 @@ void *thread_handler(void *fd) {
         // 可能爲 php socket 連線，使用 account name 進行判斷 
         if (strcmp(client[client_index].account, "dashboard") == 0) {
             // 原則上 php socket 強制結束不會有問題
-            
-            if (strcmp(recv_buffer, "@IP analysis") == 0) {
-                // send 分析結果檔案位置給 dashboard client
-                // 各個 IP success 與 fail url 數量 (暫時只能做到這個 QQ)
-                sprintf(send_buffer, "../C-Crawler-Server/log/analysis.log");
-                ip_analysis(map, send_buffer);
-                send(socketFD, &send_buffer, BUFFER_SIZE, 0);
-                pthread_mutex_lock(&lock);
-                remove_client_index(socketFD);
-                clear_socket(socketFD, &master, &minFD, &maxFD);
-                pthread_mutex_unlock(&lock);
-            }
-            else {
-                // send 當前 connected socket client 資訊
-                // dashboard 可根據 client account 至 log 尋找相應的 log file
-                char *account = check_connected_account();
-                send(socketFD, account, BUFFER_SIZE, 0);
-                pthread_mutex_lock(&lock);
-                remove_client_index(socketFD);
-                clear_socket(socketFD, &master, &minFD, &maxFD);
-                pthread_mutex_unlock(&lock);
-                free(account);
-            }
+            fprintf(stderr, "Checked  Connected\n");
+            // send 當前 connected socket client 資訊
+            // dashboard 可根據 client account 至 log 尋找相應的 log file
+            char *account = check_connected_account();
+            send(socketFD, account, BUFFER_SIZE, 0);
+            pthread_mutex_lock(&lock);
+            remove_client_index(socketFD);
+            clear_socket(socketFD, &master, &minFD, &maxFD);
+            pthread_mutex_unlock(&lock);
+            free(account);
+            break;
+        }
+        else if (strcmp(client[client_index].account, "IP analysis") == 0) {
+            // 原則上 php socket 強制結束不會有問題
+            fprintf(stderr, "IP Analysis\n");
+            // send 分析結果檔案位置給 dashboard client
+            // 各個 IP success 與 fail url 數量 (暫時只能做到這個 QQ)
+            sprintf(send_buffer, "../C-Crawler-Server/log/analysis.log");
+            ip_analysis(map, send_buffer);
+            send(socketFD, &send_buffer, BUFFER_SIZE, 0);
+            pthread_mutex_lock(&lock);
+            remove_client_index(socketFD);
+            clear_socket(socketFD, &master, &minFD, &maxFD);
+            pthread_mutex_unlock(&lock);
             break;
         }
         else {

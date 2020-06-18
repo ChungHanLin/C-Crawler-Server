@@ -8,6 +8,15 @@
 
 #include "cache.h"
 
+static inline int parseInt(char *string) {
+    int i, sum = 0;
+    for (i = 0; string[i] != '\0'; i++) {
+        sum = sum * 10 + (string[i] - '0');
+    }
+
+    return sum;
+}
+
 void init_cache(Dns *cache) {
     int i;
     
@@ -24,7 +33,7 @@ void backup_cache(Dns *cache) {
     Cache *cursor;
     if (fp) {
         for (i = 0; i < MAX_HASH; i++) {
-            if (!cache->map[i]) {
+            if (cache->map[i]) {
                 cursor = cache->map[i];
                 while (cursor) {
                     fprintf(fp, "%d %s %s\n", i, cursor->ip, cursor->url);
@@ -38,18 +47,47 @@ void backup_cache(Dns *cache) {
 }
 
 void recover_cache(Dns *cache) {
-    int i, hash_index;
+    int i, hash_index, moveCnt = 0, spaceCnt = 0;
+    char *ptr, buffer[BUFFER_SIZE];
     char path[] = "backup/dns_cache.log";
-    char ip[BUFFER_SIZE], domain[BUFFER_SIZE];
+    char *ip, *domain;
     FILE *fp = fopen(path, "r");
     Cache *cursor;
 
     if (fp) {
-        while (fscanf(fp, "%d %s %s", &hash_index, ip, domain) != EOF) {
+        while (fgets(buffer, BUFFER_SIZE, fp)) {
+            ptr = buffer;
+            moveCnt = 0;
+            spaceCnt = 0;
+            for (i = 0; buffer[i] != '\n' && buffer[i] != '\0'; i++, moveCnt++) {
+                if (buffer[i] == ' ') {
+                    spaceCnt++;
+                    if (spaceCnt == 1) {
+                        buffer[i] = '\0';
+                        hash_index = parseInt(ptr);
+                        ptr = ptr + moveCnt + 1;
+                        moveCnt = 0;
+                    }
+                    else if (spaceCnt == 2) {
+                        buffer[i] = '\0';
+                        ip = strdup(ptr);
+                        ptr = ptr + moveCnt;
+                        moveCnt = 0;
+                    }
+                }
+            }
+            buffer[i] = '\0';
+            domain = strdup(ptr);
             cache->map[hash_index] = insert_dns_cache(cache->map[hash_index], domain, ip);
         }
 
         fclose(fp);
+
+        // for (i = 0; i < MAX_HASH; i++) {
+        //     if (cache->map[i]) {
+        //         fprintf(stderr, "%s %s\n", cache->map[i]->url, cache->map[i]->ip);
+        //     }
+        // }
     }
 }
 
@@ -149,7 +187,7 @@ Cache *insert_dns_cache(Cache *head, unsigned char *url, char *ip) {
     }
     else {
         while (cursor != NULL) {
-            if ((compare = strcmp(cursor->url, url)) < 0) {
+            if ((compare = strcmp(url, cursor->url)) < 0) {
                 break;
             }
             prev = cursor;

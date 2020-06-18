@@ -1,0 +1,13 @@
+Account: tsmc
+Begin time: Wed Jun 17 22:37:24 2020
+Finish time: Wed Jun 17 22:38:33 2020
+IP: 127.0.0.1
+Port: 8080
+Total crawled count: 265
+Recent crawled count: 265
+Success crawled link: ../C-Crawler-Server/log/success/tsmc.log
+Total fail count: 759
+Recent fail count: 759
+Fail crawled link: ../C-Crawler-Server/log/fail/tsmc.log
+Collected link count: 5550
+Collected link: ../C-Crawler-Server/log/collect/tsmc.log
